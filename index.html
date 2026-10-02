@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+
+<title>TAP Animation TV</title>
+
+<style>
+*{
+  box-sizing:border-box;
+  -webkit-tap-highlight-color:transparent;
+}
+
+html,body{
+  margin:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#111;
+  font-family:Arial,sans-serif;
+}
+
+#tv{
+  position:relative;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#dfe8e5;
+}
+
+canvas{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+}
+
+#top{
+  position:absolute;
+  top:10px;
+  left:10px;
+  right:10px;
+
+  display:flex;
+  justify-content:space-between;
+
+  pointer-events:none;
+}
+
+.badge{
+  padding:6px 9px;
+
+  background:rgba(255,255,255,.82);
+
+  border:1px solid #111;
+  border-radius:7px;
+
+  font-size:10px;
+  font-weight:bold;
+  letter-spacing:.12em;
+}
+
+#dialogue{
+  position:absolute;
+
+  left:7%;
+  right:7%;
+  bottom:82px;
+
+  padding:12px 15px;
+
+  background:rgba(250,247,239,.94);
+
+  border:2px solid #111;
+
+  box-shadow:5px 5px 0 rgba(0,0,0,.15);
+}
+
+#speaker{
+  font-size:10px;
+  font-weight:bold;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+
+#text{
+  margin-top:4px;
+  font-family:Georgia,serif;
+  font-size:18px;
+}
+
+#controls{
+  position:absolute;
+
+  left:50%;
+  bottom:15px;
+
+  transform:translateX(-50%);
+
+  display:flex;
+  gap:6px;
+}
+
+button{
+  border:1px solid #111;
+  border-radius:7px;
+
+  background:rgba(255,255,255,.9);
+
+  padding:7px 10px;
+
+  font-size:11px;
+  font-weight:bold;
+}
+
+button:active{
+  transform:translateY(1px);
+}
+
+/* PAGE */
+
+#page{
+  position:absolute;
+  inset:0;
+
+  display:none;
+
+  background:#eee9dd;
+
+  z-index:10;
+
+  transform-origin:left center;
+}
+
+#pageInner{
+  position:absolute;
+
+  left:9%;
+  right:9%;
+  top:9%;
+  bottom:9%;
+
+  border:2px solid #111;
+
+  padding:8%;
+
+  background:#f5f0e5;
+}
+
+#pageTitle{
+  font-size:12px;
+  font-weight:bold;
+  letter-spacing:.15em;
+}
+
+#pageText{
+  margin-top:30px;
+
+  max-width:650px;
+
+  font-family:Georgia,serif;
+
+  font-size:clamp(24px,6vw,48px);
+
+  line-height:1.08;
+}
+</style>
+</head>
+
+<body>
+
+<div id="tv">
+
+  <canvas id="scene"></canvas>
+
+  <div id="top">
+    <div class="badge" id="sceneName">
+      FOREST PATH
+    </div>
+
+    <div class="badge">
+      TAP ANIMATION TV
+    </div>
+  </div>
+
+  <div id="dialogue">
+
+    <div id="speaker">
+      GRANDPA GOHAN
+    </div>
+
+    <div id="text">
+      Good footing saves energy.
+    </div>
+
+  </div>
+
+  <div id="controls">
+
+    <button id="prev">
+      ◀
+    </button>
+
+    <button id="next">
+      NEXT
+    </button>
+
+    <button id="auto">
+      AUTO
+    </button>
+
+    <button id="pageButton">
+      PAGE
+    </button>
+
+  </div>
+
+  <div id="page">
+
+    <div id="pageInner">
+
+      <div id="pageTitle">
+        TAP SCENEBOOK
+      </div>
+
+      <div id="pageText"></div>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<script>
+/* =========================================================
+   TAP ANIMATION TV
+   CARTRIDGE RUNTIME
+========================================================= */
+
+(function(){
+
+"use strict";
+
+
+/* =========================================================
+   TAP SCENE ENGINE
+========================================================= */
+
+const TAPScene = {
+
+  scenes:{},
+
+  current:null,
+
+  index:0,
+
+  auto:false,
+
+  autoTimer:0,
+
+  register(scene){
+
+    if(!scene || !scene.id){
+      return;
+    }
+
+    this.scenes[scene.id] = scene;
+
+  },
+
+  play(id){
+
+    const scene = this.scenes[id];
+
+    if(!scene){
+      return;
+    }
+
+    this.current = scene;
+
+    this.currentTime = 0;
+
+    updateHUD();
+
+  },
+
+  next(){
+
+    const ids = Object.keys(this.scenes);
+
+    if(!ids.length){
+      return;
+    }
+
+    this.index++;
+
+    if(this.index >= ids.length){
+      this.index = 0;
+    }
+
+    this.play(ids[this.index]);
+
+  },
+
+  previous(){
+
+    const ids = Object.keys(this.scenes);
+
+    if(!ids.length){
+      return;
+    }
+
+    this.index--;
+
+    if(this.index < 0){
+      this.index = ids.length-1;
+    }
+
+    this.play(ids[this.index]);
+
+  },
+
+  background(id){
+
+    this.play(id);
+
+    document.body.dataset.tapBackground = "true";
+
+  },
+
+  stop(){
+
+    this.current = null;
+
+  },
+
+  transition(type){
+
+    if(type === "page"){
+      flipPage();
+    }
+
+  }
+
+};
+
+
+/* =========================================================
+   CANVAS
+========================================================= */
+
+const canvas =
+  document.getElementById("scene");
+
+const ctx =
+  canvas.getContext("2d");
+
+let W = 0;
+let H = 0;
+
+let time = 0;
+
+let lastTime = 0;
+
+
+function resize(){
+
+  const rect =
+    canvas.getBoundingClientRect();
+
+  const dpr =
+    Math.min(window.devicePixelRatio || 1,2);
+
+  W = rect.width;
+  H = rect.height;
+
+  canvas.width =
+    W*dpr;
+
+  canvas.height =
+    H*dpr;
+
+  ctx.setTransform(
+    dpr,
+    0,
+    0,
+    dpr,
+    0,
+    0
+  );
+
+}
+
+window.addEventListener(
+  "resize",
+  resize
+);
+
+resize();
+
+
+/* =========================================================
+   DRAW HELPERS
+========================================================= */
+
+function line(
+  x1,y1,
+  x2,y2,
+  width=2
+){
+
+  ctx.lineWidth = width;
+
+  ctx.beginPath();
+
+  ctx.moveTo(x1,y1);
+
+  ctx.lineTo(x2,y2);
+
+  ctx.stroke();
+
+}
+
+
+function stickFigure(
+  x,
+  y,
+  scale=1,
+  phase=0
+){
+
+  const walk =
+    Math.sin(phase)*7*scale;
+
+  const bob =
+    Math.abs(Math.sin(phase))*2*scale;
+
+  ctx.strokeStyle="#111";
+
+  ctx.lineWidth =
+    Math.max(1.5,2.2*scale);
+
+  ctx.lineCap="round";
+
+
+  /* head */
+
+  ctx.beginPath();
+
+  ctx.arc(
+    x,
+    y-42*scale-bob,
+    8*scale,
+    0,
+    Math.PI*2
+  );
+
+  ctx.stroke();
+
+
+  /* body */
+
+  line(
+    x,
+    y-34*scale-bob,
+    x,
+    y-10*scale-bob
+  );
+
+
+  /* arms */
+
+  line(
+    x,
+    y-28*scale-bob,
+    x-13*scale-walk,
+    y-15*scale
+  );
+
+  line(
+    x,
+    y-28*scale-bob,
+    x+13*scale+walk,
+    y-15*scale
+  );
+
+
+  /* legs */
+
+  line(
+    x,
+    y-10*scale-bob,
+    x-11*scale+walk,
+    y+15*scale
+  );
+
+  line(
+    x,
+    y-10*scale-bob,
+    x+11*scale-walk,
+    y+15*scale
+  );
+
+}
+
+
+/* =========================================================
+   SCENE CARTRIDGES
+========================================================= */
+
+
+/* FOREST */
+
+TAPScene.register({
+
+  id:"forest",
+
+  title:"Forest Path",
+
+  speaker:"Grandpa Gohan",
+
+  dialogue:
+    "Good footing saves energy.",
+
+  duration:8000,
+
+  draw(){
+
+    ctx.fillStyle="#d9e6e7";
+
+    ctx.fillRect(
+      0,0,W,H
+    );
+
+
+    /* distant trees */
+
+    for(
+      let i=0;
+      i<8;
+      i++
+    ){
+
+      const x =
+        i*150 -
+        (time*10%150);
+
+      ctx.fillStyle=
+        "rgba(40,70,50,.16)";
+
+      ctx.fillRect(
+        x,
+        H*.35,
+        25,
+        H*.4
+      );
+
+      ctx.beginPath();
+
+      ctx.moveTo(
+        x-40,
+        H*.35
+      );
+
+      ctx.lineTo(
+        x+12,
+        H*.15
+      );
+
+      ctx.lineTo(
+        x+65,
+        H*.35
+      );
+
+      ctx.fill();
+
+    }
+
+
+    /* ground */
+
+    ctx.fillStyle="#c9c0a6";
+
+    ctx.fillRect(
+      0,
+      H*.72,
+      W,
+      H*.28
+    );
+
+
+    /* path lines */
+
+    ctx.strokeStyle=
+      "rgba(30,30,30,.18)";
+
+    for(
+      let i=0;
+      i<12;
+      i++
+    ){
+
+      const x =
+        i*100 -
+        (time*25%100);
+
+      line(
+        x,
+        H*.75,
+        x+30,
+        H*.74,
+        1
+      );
+
+    }
+
+
+    stickFigure(
+      W*.48+
+      Math.sin(time*.5)*8,
+      H*.74,
+      1.05,
+      time*2
+    );
+
+  }
+
+});
+
+
+/* KORIN TOWER */
+
+TAPScene.register({
+
+  id:"korin_tower",
+
+  title:"Korin Tower",
+
+  speaker:"Korin",
+
+  dialogue:
+    "The climb never ends.",
+
+  duration:8000,
+
+  draw(){
+
+    ctx.fillStyle="#d8e7ed";
+
+    ctx.fillRect(
+      0,0,W,H
+    );
+
+
+    /* tower */
+
+    ctx.fillStyle="#c5b99a";
+
+    ctx.fillRect(
+      W*.41,
+      H*.08,
+      W*.18,
+      H*.92
+    );
+
+
+    /* tower lines */
+
+    ctx.strokeStyle=
+      "rgba(20,20,20,.2)";
+
+    for(
+      let y=H*.1;
+      y<H;
+      y+=38
+    ){
+
+      line(
+        W*.41,
+        y,
+        W*.59,
+        y,
+        1
+      );
+
+    }
+
+
+    /* roof */
+
+    ctx.fillStyle="#b3a685";
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+      W*.36,
+      H*.09
+    );
+
+    ctx.lineTo(
+      W*.5,
+      H*.01
+    );
+
+    ctx.lineTo(
+      W*.64,
+      H*.09
+    );
+
+    ctx.fill();
+
+
+    stickFigure(
+      W*.5,
+      H*.9,
+      .72,
+      time*1.7
+    );
+
+  }
+
+});
+
+
+/* WATERFALL */
+
+TAPScene.register({
+
+  id:"waterfall",
+
+  title:"Waterfall",
+
+  speaker:"Master Roshi",
+
+  dialogue:
+    "Let the noise pass through you.",
+
+  duration:8000,
+
+  draw(){
+
+    ctx.fillStyle="#d6e0df";
+
+    ctx.fillRect(
+      0,0,W,H
+    );
+
+
+    ctx.fillStyle="#aebbb6";
+
+    ctx.fillRect(
+      0,
+      H*.7,
+      W,
+      H*.3
+    );
+
+
+    /* water */
+
+    ctx.strokeStyle=
+      "rgba(255,255,255,.65)";
+
+    for(
+      let x=0;
+      x<W;
+      x+=18
+    ){
+
+      const y =
+        H*.15+
+        Math.sin(
+          x*.06+
+          time*1.5
+        )*8;
+
+      line(
+        x,
+        y,
+        x+8,
+        y+H*.55,
+        1.5
+      );
+
+    }
+
+
+    stickFigure(
+      W*.5,
+      H*.72,
+      .85,
+      0
+    );
+
+  }
+
+});
+
+
+/* NIGHT CAMP */
+
+TAPScene.register({
+
+  id:"camp",
+
+  title:"Night Camp",
+
+  speaker:"TAP",
+
+  dialogue:
+    "Rest is part of the training.",
+
+  duration:8000,
+
+  draw(){
+
+    ctx.fillStyle="#101820";
+
+    ctx.fillRect(
+      0,0,W,H
+    );
+
+
+    /* stars */
+
+    for(
+      let i=0;
+      i<55;
+      i++
+    ){
+
+      const x=(i*83)%W;
+
+      const y=(i*47)%(
+        H*.65
+      );
+
+      ctx.fillStyle=
+        i%7===0
+        ? "#fff"
+        : "#69737b";
+
+      ctx.fillRect(
+        x,
+        y,
+        1.5,
+        1.5
+      );
+
+    }
+
+
+    ctx.fillStyle="#27231d";
+
+    ctx.fillRect(
+      0,
+      H*.72,
+      W,
+      H*.28
+    );
+
+
+    /* fire */
+
+    const flicker =
+      1+
+      Math.sin(time*7)*.08;
+
+    ctx.fillStyle="#d2a45b";
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+      W*.5-22*flicker,
+      H*.7
+    );
+
+    ctx.lineTo(
+      W*.5,
+      H*.7-48*flicker
+    );
+
+    ctx.lineTo(
+      W*.5+22*flicker,
+      H*.7
+    );
+
+    ctx.fill();
+
+
+    stickFigure(
+      W*.37,
+      H*.72,
+      .9,
+      0
+    );
+
+  }
+
+});
+
+
+/* AFTERIMAGE */
+
+TAPScene.register({
+
+  id:"afterimage",
+
+  title:"Afterimage Realm",
+
+  speaker:"Afterimage",
+
+  dialogue:
+    "Remove hesitation. Keep the motion.",
+
+  duration:8000,
+
+  draw(){
+
+    ctx.fillStyle="#090b10";
+
+    ctx.fillRect(
+      0,0,W,H
+    );
+
+
+    /* grid */
+
+    ctx.strokeStyle=
+      "rgba(120,160,200,.15)";
+
+    for(
+      let x=0;
+      x<W;
+      x+=45
+    ){
+
+      line(
+        x,0,
+        x,H,
+        1
+      );
+
+    }
+
+    for(
+      let y=0;
+      y<H;
+      y+=45
+    ){
+
+      line(
+        0,y,
+        W,y,
+        1
+      );
+
+    }
+
+
+    const x =
+      W*.5+
+      Math.sin(time*2)*55;
+
+    const y =
+      H*.68;
+
+
+    /* afterimages */
+
+    for(
+      let i=5;
+      i>0;
+      i--
+    ){
+
+      ctx.globalAlpha=
+        .08*i;
+
+      stickFigure(
+        x-i*12,
+        y,
+        .85,
+        time*4-i*.4
+      );
+
+    }
+
+    ctx.globalAlpha=1;
+
+
+    stickFigure(
+      x,
+      y,
+      .85,
+      time*4
+    );
+
+  }
+
+});
+
+
+/* NIMBUS SKY */
+
+TAPScene.register({
+
+  id:"nimbus",
+
+  title:"Nimbus Sky",
+
+  speaker:"TAP",
+
+  dialogue:
+    "Travel light.",
+
+  duration:8000,
+
+  draw(){
+
+    ctx.fillStyle="#b9d8ed";
+
+    ctx.fillRect(
+      0,0,W,H
+    );
+
+
+    /* clouds */
+
+    for(
+      let i=0;
+      i<5;
+      i++
+    ){
+
+      const x =
+        (
+          i*220+
+          time*12
+        )%(W+150)-100;
+
+      const y =
+        100+
+        i*65;
+
+      ctx.strokeStyle=
+        "rgba(30,50,60,.2)";
+
+      ctx.lineWidth=2;
+
+      ctx.beginPath();
+
+      ctx.arc(
+        x,
+        y,
+        16,
+        Math.PI,
+        0
+      );
+
+      ctx.arc(
+        x+22,
+        y-5,
+        19,
+        Math.PI,
+        0
+      );
+
+      ctx.arc(
+        x+45,
+        y,
+        15,
+        Math.PI,
+        0
+      );
+
+      ctx.stroke();
+
+    }
+
+
+    /* cloud */
+
+    ctx.fillStyle=
+      "rgba(255,255,255,.75)";
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+      W*.5,
+      H*.68,
+      90,
+      25,
+      0,
+      0,
+      Math.PI*2
+    );
+
+    ctx.fill();
+
+
+    stickFigure(
+      W*.5,
+      H*.66,
+      .72,
+      time*2
+    );
+
+  }
+
+});
+
+
+/* =========================================================
+   HUD
+========================================================= */
+
+function updateHUD(){
+
+  if(!TAPScene.current){
+    return;
+  }
+
+  document.getElementById(
+    "sceneName"
+  ).textContent =
+    TAPScene.current.title;
+
+  document.getElementById(
+    "speaker"
+  ).textContent =
+    TAPScene.current.speaker;
+
+  document.getElementById(
+    "text"
+  ).textContent =
+    TAPScene.current.dialogue;
+
+}
+
+
+/* =========================================================
+   PAGE FLIP
+========================================================= */
+
+function flipPage(){
+
+  const page =
+    document.getElementById("page");
+
+  const pageText =
+    document.getElementById("pageText");
+
+  if(!TAPScene.current){
+    return;
+  }
+
+  pageText.textContent =
+    TAPScene.current.dialogue;
+
+  page.style.display="block";
+
+  page.style.transform=
+    "rotateY(0deg)";
+
+  page.style.transition=
+    "transform .65s ease";
+
+  requestAnimationFrame(()=>{
+
+    page.style.transform=
+      "rotateY(-85deg)";
+
+  });
+
+  setTimeout(()=>{
+
+    page.style.display="none";
+
+    page.style.transition="";
+
+  },700);
+
+}
+
+
+/* =========================================================
+   BUTTONS
+========================================================= */
+
+document
+.getElementById("next")
+.onclick=()=>{
+
+  TAPScene.next();
+
+};
+
+
+document
+.getElementById("prev")
+.onclick=()=>{
+
+  TAPScene.previous();
+
+};
+
+
+document
+.getElementById("pageButton")
+.onclick=()=>{
+
+  flipPage();
+
+};
+
+
+document
+.getElementById("auto")
+.onclick=()=>{
+
+  TAPScene.auto=
+    !TAPScene.auto;
+
+  document
+  .getElementById("auto")
+  .textContent =
+    TAPScene.auto
+    ? "STOP"
+    : "AUTO";
+
+};
+
+
+/* =========================================================
+   KEYBOARD
+========================================================= */
+
+window.addEventListener(
+  "keydown",
+  e=>{
+
+    if(e.key==="ArrowRight"){
+      TAPScene.next();
+    }
+
+    if(e.key==="ArrowLeft"){
+      TAPScene.previous();
+    }
+
+    if(e.code==="Space"){
+
+      e.preventDefault();
+
+      flipPage();
+
+    }
+
+  }
+);
+
+
+/* =========================================================
+   TAP-CARTRIDGE EXPORT
+========================================================= */
+
+window.tapAnimationTV = {
+
+  scene:TAPScene,
+
+  play(id){
+    TAPScene.play(id);
+  },
+
+  background(id){
+    TAPScene.background(id);
+  },
+
+  stop(){
+    TAPScene.stop();
+  },
+
+  register(scene){
+    TAPScene.register(scene);
+  }
+
+};
+
+
+/* =========================================================
+   START
+========================================================= */
+
+TAPScene.play("forest");
+
+
+/* =========================================================
+   MAIN LOOP
+========================================================= */
+
+function loop(now){
+
+  const dt =
+    Math.min(
+      (now-lastTime)/1000,
+      .05
+    );
+
+  lastTime=now;
+
+  time+=dt;
+
+  ctx.clearRect(
+    0,
+    0,
+    W,
+    H
+  );
+
+
+  if(TAPScene.current){
+
+    TAPScene.current.draw(
+      ctx,
+      time,
+      dt
+    );
+
+  }
+
+
+  if(
+    TAPScene.auto &&
+    TAPScene.current
+  ){
+
+    TAPScene.autoTimer+=dt;
+
+    if(
+      TAPScene.autoTimer >
+      TAPScene.current.duration/1000
+    ){
+
+      TAPScene.autoTimer=0;
+
+      TAPScene.next();
+
+    }
+
+  }else{
+
+    TAPScene.autoTimer=0;
+
+  }
+
+
+  requestAnimationFrame(loop);
+
+}
+
+requestAnimationFrame(loop);
+
+
+/* =========================================================
+   OPTIONAL TAP API BRIDGE
+========================================================= */
+
+if(
+  typeof window.tap !== "undefined"
+){
+
+  tap.animationTV =
+    window.tapAnimationTV;
+
+}
+
+})();
+</script>
+
+</body>
+</html>
